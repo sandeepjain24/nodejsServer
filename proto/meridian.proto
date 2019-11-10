@@ -1,0 +1,228 @@
+syntax = "proto3";
+
+package Tyco;
+
+option java_package = "com.tycoint.m4mms.aimsun";
+option java_outer_classname = "MeridianProtos";
+
+import "google/protobuf/empty.proto";
+
+service Meridian
+{
+  /*! List all the site change since a time. Returns a list of site ids
+  */
+  rpc GetSiteChanges( SiteChangesRequest ) returns ( SiteChangesReply );
+
+  /*! Get the state of all the Speed Signs and Lane Signs at a date
+  */
+  rpc GetSpeedLaneSignState( SpeedLaneSignStateRequest ) returns ( SpeedLaneSignStateReply );
+
+  /*! Get the the state of all VMSs at a date
+  */
+  rpc GetVmsState( VMSStateRequest ) returns ( VMSStateReply );
+
+  /*! Get all the situations at a date
+  */
+  rpc GetSituations( SituationsRequest ) returns ( SituationsReply );
+
+  /*! Get weather information at a date
+  */
+  rpc GetWeather( WeatherRequest ) returns ( WeatherReply );
+
+  /*! Get detection data for a date
+  */
+  rpc GetDetectionData( DetectionDataRequest ) returns ( stream DetectionData );
+
+  /*! Report incident
+  */
+  rpc IncidentDetected( IncidentAlarmRequest ) returns ( google.protobuf.Empty );
+}
+
+message DetectionDataRequest {
+  int64 when = 1; // EpochTime in MS
+  uint32 aggregation_period = 2; /* the number of seconds included in this collection
+                                  * (required for e.g. avg occupancy calculation) */
+}
+
+enum VariableType {
+  FLOW = 0; // veh/hr
+  SPEED = 1;
+  DENSITY = 2;
+  COUNT = 3;
+  OCCUPANCY = 4;
+  // TODO ... add all var types
+}
+
+message DetectionDataValues {
+  VariableType  variable = 1;
+  float         value = 2;
+}
+
+message DetectionData
+{
+  string                        sensor_id = 1;
+  int64                         when = 2; // EpochTime in MS
+  int32                         interval = 3; // in MS
+  repeated DetectionDataValues  values = 4;
+}
+
+message SiteChangesRequest {
+  int64 since = 1; // EpochTime in MS
+}
+
+message SiteChangesReply {
+  repeated string site_ids = 1;
+}
+
+message SpeedLaneSignStateRequest {
+  int64 when = 1; // EpochTime in MS
+}
+
+enum SpeedLaneAspectType {
+  BLANK = 0;
+  SPEED_LIMIT_110_FIXED_ANNULUS = 110;
+  SPEED_LIMIT_110_FLASHING_ANNULUS = 111;
+  SPEED_LIMIT_100_FIXED_ANNULUS = 100;
+  SPEED_LIMIT_100_FLASHING_ANNULUS = 101;
+  SPEED_LIMIT_90_FIXED_ANNULUS = 90;
+  SPEED_LIMIT_90_FLASHING_ANNULUS = 91;
+  SPEED_LIMIT_80_FIXED_ANNULUS = 80;
+  SPEED_LIMIT_80_FLASHING_ANNULUS = 81;
+  SPEED_LIMIT_70_FIXED_ANNULUS = 70;
+  SPEED_LIMIT_70_FLASHING_ANNULUS = 71;
+  SPEED_LIMIT_60_FIXED_ANNULUS = 60;
+  SPEED_LIMIT_60_FLASHING_ANNULUS = 61;
+  SPEED_LIMIT_50_FIXED_ANNULUS = 50;
+  SPEED_LIMIT_50_FLASHING_ANNULUS = 51;
+  SPEED_LIMIT_40_FIXED_ANNULUS = 40;
+  SPEED_LIMIT_40_FLASHING_ANNULUS = 41;
+  UPWARD_ARROW = 180;
+  DOWNWARD_ARROW = 181;
+  UP_LEFT_ARROW = 182;
+  UP_RIGHT_ARROW = 183;
+  DOWN_LEFT_ARROW = 184;
+  DOWN_RIGHT_ARROW = 185;
+  RED_CROSS = 189;
+}
+
+message SpeedLaneSignState
+{
+  string               id = 1;
+  SpeedLaneAspectType  aspect_code = 2;
+  int64                when = 3; // EpochTime in MS
+}
+
+message SpeedLaneSignStateReply {
+  repeated SpeedLaneSignState states = 1;
+}
+
+message VMSStateRequest {
+  int64 when = 1; // EpochTime in MS
+}
+
+message VMSStateReply {
+  repeated VMSState  states = 1;
+}
+
+message VMSRawMessage
+{
+  repeated string message = 1; // each message string is one frame (page). Multiple lines separated by CR/LF
+}
+
+message VMSTravelTime
+{
+  string destination = 1;
+  double travel_time = 2; // seconds
+}
+
+message VMSState
+{
+  VMSRawMessage           raw_message = 1;
+  repeated VMSTravelTime  travel_times = 2;
+  string                  situation_id = 3; // See Situations
+  string                  template_id = 4;
+  repeated string         template_value = 5;
+  string                  id = 6;
+  int64                   when = 7; // EpochTime in MS
+}
+
+message SituationsRequest {
+  int64 when = 1; // EpochTime in MS
+}
+
+message SituationsReply {
+  repeated Situation situations = 1;
+}
+
+message LRLocation
+{
+  uint32          start_link_id = 1;
+  uint32          end_link_id = 2;
+  uint32          start_distance = 3; // metres from start of link
+  uint32          end_distance = 4; // metres from start of link
+  repeated uint32 lanes = 5; // '0' is hard shoulder, 1_n matches ANG lane definition (left to right)
+}
+
+enum SituationType {
+  OTHER = 0;
+  BREAKDOWN = 1;
+  ACCIDENT = 2;
+  OBSTRUCTION = 3;
+  FLOODING = 4;
+  OVERSIZE_PROHIBITED_VEHICLE = 5;
+  WRONG_WAY_VEHICLE = 6;
+  EMERGENCY_VEHICLE = 7;
+  WEATHER_RAIN = 8;
+  WEATHER_HAIL = 9;
+  WEATHER_STORM = 10;
+  WEATHER_FROST = 11;
+  WEATHER_SLIPPERY = 12;
+  WEATHER_ICE = 13;
+  WEATHER_SUN_GLARE = 14;
+  WEATHER_FOG = 15;
+  WEATHER_SMOKE_DUST = 16;
+  CIVIL_UNREST = 17;
+  CONGESTION = 18;
+  ROADWORKS = 19;
+  SPECIAL_EVENT = 20;
+}
+
+message Situation
+{
+  string              id = 1;
+  int64               start_time = 2; // EpochTime in MS
+  uint32              duration = 3; // estimate, in minutes
+  repeated LRLocation location = 4;
+  SituationType       main_category = 5;
+  string              weather_station_id = 6; // only used for weather situations, location will be blank
+}
+
+message WeatherRequest {
+  int64 when = 1; // EpochTime in MS
+}
+
+message WeatherReply {
+  repeated WeatherStation stations = 1;
+}
+
+message WeatherStation {
+  string    id = 1;
+  // TODO
+}
+
+message ResponsePlan
+{
+  string                      id = 1;
+  repeated SpeedLaneSignState sign_states = 2;
+  repeated VMSState           vms_states = 3;
+}
+
+message IncidentAlarmRequest {
+  string     id = 1; // incident detection identifier generated by Aimsun;
+             // used only for filtering our "repeated" detections. Remove if not applicable!
+  LRLocation location = 2;
+  string     category = 3; // stopped vehicle, congestion ... *** enum may be better? ***
+  int64      detection_time = 4; // EpochTime in MS
+  uint32     duration = 5; // estimate, in minutes (omit if unknown)
+  float      confidence = 6; // 0.0 to 1.0, degree of confidence (omit if unknown)
+}

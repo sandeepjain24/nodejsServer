@@ -1,0 +1,284 @@
+syntax = "proto3";
+
+package Sitraffic.TMS;
+
+import "google/protobuf/empty.proto";
+
+service Sitraffic
+{
+	/*! Get intersection data for a date
+	*/
+	rpc GetIntersectionData( IntersectionDataRequest ) returns ( stream IntersectionData );
+
+	/*! Get detection data for a date
+	*/
+	rpc GetDetectionData( DetectionDataRequest ) returns ( stream DetectionData );
+
+	/*! Get incident data for a date
+	*/
+	rpc GetTrafficMessages( TrafficMessageRequest ) returns ( stream TrafficMessageData );
+
+	/*! Get weather data for a date
+	*/
+	rpc GetWeatherData( WeatherDataRequest ) returns ( stream WeatherData );
+
+	/*! Check if the server is running.
+	*/
+	rpc ping( google.protobuf.Empty ) returns( google.protobuf.Empty )
+	{
+	}
+	/*! Login into the service. No credentials are needed.
+        Use the returned token for all the other calls.
+    */
+	rpc login( AuthLoginData ) returns( AuthToken )
+	{
+	}
+
+	/*! Logout from the service, invalidating the token.
+    */
+	rpc logout( google.protobuf.Empty ) returns ( google.protobuf.Empty ){
+	}
+}
+
+message AuthLoginData
+{
+	string	username = 1;
+	string	password = 2;
+}
+
+message AuthToken
+{
+	string	token = 1;
+}
+
+/*!
+    Scenarios and Response plans
+*/
+
+message ResponsePlanAction
+{
+	string          id = 1;
+	uint64			activation_time = 2; // UTC time
+	uint64			start_time = 3; // UTC time
+	uint64			end_time = 4; // UTC time
+	// TODO for later steps add the content of the action recommendation, signControl, linkControl,...
+}
+
+message ResponsePlan
+{
+	string                        id = 1;
+	uint64						  activation_time = 2; // UTC time
+	repeated ResponsePlanAction   actions = 3;
+}
+
+message Scenario
+{
+	string                   id = 1;
+	repeated ResponsePlan    responsePlans = 2;
+}
+
+// INTERSECTIONS
+/*!	Get the intersection data since requested time
+*/
+message IntersectionDataRequest
+{
+	uint64 start_time = 1; // UTC time
+}
+
+
+message PartialIntersectionState
+{
+	uint32	partialIntersectionNr = 1;
+	bool	on = 2;
+	// bool	fixedTime = 3; // if false then traffic actuation
+}
+
+message IntersectionState
+{
+	bool								inFaultMode = 1; // error state of intersection
+	uint32								program = 2; // signalprogram
+	uint32								cycleTime = 3;
+	repeated PartialIntersectionState	partialIntersectionState = 4;
+	bool								fixedTime = 5; // if false then traffic actuation
+	bool            					modificationIv = 6;  //  controller reacts for individuals
+	bool            					modificationPt = 7;  //  controller reacts for public transport
+}
+
+message IntersectionData
+{
+	string				intersection_id = 1;
+	uint64				changedTime = 2; // UTC time when the status has changed
+	IntersectionState	state = 3;
+}
+
+
+// DETECTION
+
+/*!	Get the detection data since requested time
+	 Detection values are aggregated to minute values
+*/
+message DetectionDataRequest
+{
+	uint64 time = 1; // UTC time
+}
+
+enum VehicleClass
+{
+	DefaultVEHICLE =0;
+	ALL = 1;
+	CAR = 2;
+	TRUCK = 3;
+	DELIVERY_TRUCK = 4;
+	MOTORCYCLE = 5;
+	UNCLASSIFIED = 6;
+	CAR_WITH_TRAILER = 7;
+	TRUCK_WITH_TRAILER = 8;
+	TRUCK_WITH_SEMI_TRAILER = 9;
+	BUS = 10;
+	// URBAN_BUS = 11; not used
+}
+
+/*! Type of a sensor data
+*/
+enum DetectionValueType
+{
+	DefaultDetectionValueType =0;
+	FLOW = 1; // veh/h
+	SPEED = 2;
+	DENSITY = 3;
+	COUNT = 4;
+	OCCUPANCY = 5;
+	LOS = 6;
+	// TODO ... add all var types
+}
+
+enum SensorType
+{
+	DefaultSensorType =0;
+	Single = 1;			// single detector
+	DetectorStation = 2; // group of detectors (aggregated values)
+}
+
+enum SensorState
+{
+	DefaultSensorState =0;
+	Ok = 1;
+	Error = 2;
+	Replaced = 3;
+}
+
+message SensorData
+{
+	uint64				time_stamp =1;
+	uint32				interval_length = 2; // interval ms , default is 1 minute
+	repeated float		value = 3;	// for every interval
+}
+
+message DetectionDataValues
+{
+	VehicleClass		vehicle_type = 1;
+	DetectionValueType	variable = 2;
+	repeated SensorData sensor_data = 3;
+}
+
+message DetectionData
+{
+	string							sensor_id = 1;
+	SensorType						sensor_type = 2;
+	SensorState						sensor_state = 3;
+	float							reliability = 4; // 0 bad, 1 good [%]
+	repeated DetectionDataValues	values = 5;
+}
+
+
+// INCIDENT
+
+/*!	Get the incident data since requested time
+*/
+message TrafficMessageRequest
+{
+	uint64 start_time = 1; // UTC time
+}
+
+enum IncidentType
+{
+	DefaultIncidentType =0;
+	RoadWork = 1;
+	Events = 2;
+	Incidents = 3;
+}
+
+message GeoPos
+{
+	float lat = 1; // lat
+	float lon = 2; // lon
+}
+
+message LaneCapacity
+{
+	uint32 laneNumber = 1; // starting with 1 as the slowest line (e.g. for right handed driving the most right lane)
+	float	capacity = 2; // in %, 0 if closed
+}
+
+message ScalarRestriction
+{
+	uint32			inHeight = 1; // in cm
+	uint32			inWeight = 2; // in kg
+	uint32			inSpeed	= 3; // km/h
+}
+
+message Restriction
+{
+	ScalarRestriction		value = 1;
+	repeated uint32			redirectedLanes = 2; // starting with 1 as the slowest line (e.g. for right handed driving the most right lane)
+	repeated LaneCapacity	laneReduction = 3;
+
+}
+
+message LocationData
+{
+	string				link_Id = 1;
+	uint32				totalLanes = 2; // count of lanes
+	repeated GeoPos		coordinates = 3;		// x/y coordinates, may result in closed area in case start = end
+}
+
+message TrafficMessageData
+{
+	uint64					from_time = 1; // UTC time stamp
+	uint64					until_time = 2; // UTC time stamp, not set if unknown
+	IncidentType			messageType = 3;
+	repeated LocationData	location = 4;
+	repeated Restriction	restrictions = 5;
+}
+
+
+// WEATHER
+
+/*!	Get the weather data since requested time
+*/
+message WeatherDataRequest
+{
+	uint64 start_time = 1; // UTC time
+}
+
+message WeatherData
+{
+	uint64	time = 1; // UTC time
+	bool	forecast = 2; // if false then it's the current (measured) weather
+	float	precipitation =3; // Nierderschlag [mm]
+	float	temperature = 4; // [C]
+	float	wind = 5; // [km/h]
+	float	humidity = 6; // [%]
+	float	barometricPressure = 7; // [hbPa]
+	uint64	sunrise = 8;
+	uint64	sunset = 9;
+	float	visisbility = 10; // [m]
+	float	lightness = 11; // [Lx]
+	float	stateOfLane = 12; // TLS
+	uint32	laneWetness = 13; // [mm]
+	uint32	snowHeight = 14; // [cm]
+	float	salt = 15; // [%]
+	string	textinfo = 16; // additional information
+	float	sunIntensity = 17;
+	float	cloudDegree = 18;
+}

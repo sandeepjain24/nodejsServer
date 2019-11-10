@@ -1,0 +1,257 @@
+syntax = "proto3";
+
+package AimsunController;
+
+import "google/protobuf/empty.proto";
+import "sitraffic_tms.proto";
+
+service Live
+{
+	/*! Returns the date of the latest simulation prediction
+	*/
+	rpc latestSimulationPrediction( google.protobuf.Empty ) returns( LatestPredictionReply );
+
+	/*! Returns the simulation prediction for a given date
+	*/
+	rpc simulationPrediction( PredictionRequest ) returns ( stream SensorData );
+
+	/*! Returns the date of the latest analytical prediction
+	*/
+	rpc latestAnalyticalPrediction( google.protobuf.Empty ) returns( LatestPredictionReply );
+
+	/*! Returns the analytical prediction for a given date
+	*/
+	rpc analyticalPrediction( PredictionRequest ) returns ( stream SensorData );
+
+	/*! Returns the KPIs for a simulation prediction
+	*/
+	rpc simulationPredictionKPIs( ForecastedKPIsRequest ) returns ( KPIs );
+
+	/*! Returns the KPIs for an analytical prediction
+	*/
+	rpc analyticalPredictionKPIs( ForecastedKPIsRequest ) returns ( KPIs );
+
+	/*! Starts the evaluation of several Response plans
+	*/
+	rpc startEvaluation( StartEvaluationRequest ) returns( StartEvaluationReply );
+
+	/*! Returns the status of the evaluations under a pack
+	*/
+	rpc evaluationStatus( PackIdRequest ) returns ( EvaluationStatusReply );
+
+	/*! Cancels all the evaluations under a pack
+	*/
+	rpc cancelEvaluation( PackIdRequest ) returns ( google.protobuf.Empty );
+
+	/*! Returns the simulated data for an evaluation
+	*/
+	rpc simulatedEvaluation( SimulatedEvaluationRequest ) returns ( stream SensorData );
+
+	/*! Returns the KPIs for an evaluation
+	*/
+	rpc simulatedEvaluationKPIs( SimulatedEvaluationRequest ) returns ( KPIs );
+
+	/*! Sets the now time, for testing
+	*/
+	rpc setNowTime( SetNowTimeRequest ) returns ( google.protobuf.Empty );
+
+	/*! Get the current time.
+	*/
+	rpc getNowTime( google.protobuf.Empty ) returns( ExtendedClockTime )
+	{
+	}
+
+	/*! Check if the server is running. No credentials are needed.
+	*/
+	rpc ping( google.protobuf.Empty ) returns( google.protobuf.Empty )
+	{
+	}
+
+	/*! Login into the service. No credentials are needed.
+		Use the returned token for all the other calls.
+	*/
+	rpc login( AuthLoginData ) returns( AuthToken )
+	{
+	}
+
+	/*! Logout from the service, invalidating the token.
+	*/
+	rpc logout( google.protobuf.Empty ) returns ( google.protobuf.Empty )
+	{
+	}
+	/*! get pattern matcher log
+	*/
+	rpc getPatternLog( SetNowTimeRequest ) returns ( PatternLog );
+}
+
+message AuthLoginData
+{
+    string	username = 1;
+    string	password = 2;
+}
+
+message AuthToken
+{
+    string	token = 1;
+}
+
+message SetNowTimeRequest {
+	int64		when = 1; // EpochTime in MS
+}
+
+message ExtendedClockTime
+{
+	int64		time = 1; // EpochTime in MS
+	int64		detailedTime = 2; // EpochTime in MS
+}
+
+message ForecastedKPIsRequest {
+	int64		when = 1; // EpochTime in MS
+}
+
+enum ObjectType {
+	AnyObject = 0; 			// all object types are included
+	Detector = 1;
+	Link = 2;
+	SubPath = 3;
+}
+
+/*! Variable types
+*/
+enum VariableType {
+	AnyType = 0;			// all variable types are returned
+	Flow = 1;			// veh/h
+	Speed = 2; 			// Km/h
+	Density = 3; 		// veh/km
+	TravelTime = 4; 	// seconds
+	Incident = 5; 		// only for analytical predictions
+	Los = 6; 			// level of service
+	// TODO ... add other var types if required
+}
+
+enum SimulationStatus {
+	Pending = 0; //How many simulation been running at time 5 simId --> 3 pending 2 running --> all 5 as Finished status
+	Running = 1; // 0 to 99 percentage
+	Finished = 2; // 100 percentage
+	Cancelled = 3; // A cancel request has been made so status has been for them as Cancelled
+	Failed = 4; // Status as failed have a error message along with it
+}
+
+message LatestPredictionReply {
+	int64		when = 1; // EpochTime in MS
+}
+
+message PredictionRequest {
+	int64			when = 1; // EpochTime in MS
+	VariableType	variable = 2;
+	ObjectType		objectType = 3;
+}
+
+/*! Values for a variable
+	- the variable type
+	- array of values
+	- reliability of each value from 0 (totally unreliable) to 1 (totally reliable)
+*/
+message SensorDataValues
+{
+	VariableType		variable = 1;
+	repeated float		values = 2;
+	repeated float		reliability = 3;
+}
+
+/*! Data for a sensor (detector, link or subpath)
+	- when is the time of the first value in MS since Epoch
+	- interval is the sampling interval, time of value i in the array will be (when + interval * i)
+*/
+message SensorData
+{
+	string							sensorId = 1;	// detector, link or subpath id
+	int32							interval = 2;	// in MS
+	int64							when = 3; 		// MS Since Epoch
+	repeated SensorDataValues		values = 4;
+}
+
+/*! A simulation id
+*/
+message SimulatedEvaluationRequest
+{
+	string			simulationId = 1;
+	VariableType	variable = 2;
+	ObjectType		objectType = 3;
+}
+
+/*! KPI calculated by a simulation
+*/
+message KPI {
+	string				name = 1;
+	repeated float		indicator = 2;
+}
+
+/*! KPIs calculated by a simulation
+*/
+message KPIs {
+	repeated KPI		kpis = 1;
+}
+
+/*! Evaluation command with a collection of scenarios and an optional do nothing.
+*/
+message StartEvaluationRequest
+{
+	repeated Sitraffic.TMS.Scenario		scenarios = 1;
+	bool								doNothing = 2;
+	string								excludeIncidentId = 3;
+}
+
+/*! Pack id
+*/
+message PackIdRequest
+{
+	string				packId = 1;
+}
+
+/*! Status of a simulation
+	- the simulation id
+	- the percentage of the task from 0 to 100 (completed)
+*/
+message EvaluationStatus
+{
+	string				simulationId = 1;
+	float					percentage = 2;
+	SimulationStatus	status=3;
+	string				errorMessage=4;
+}
+
+/*! Status of all the simulations
+*/
+message EvaluationStatusReply
+{
+	string						packId = 1;
+	repeated EvaluationStatus	simulations = 2;
+}
+
+/*! What simulation is doing what response plan.
+*/
+message EvaluationSim
+{
+	string				simulationId = 1;
+	string				scenarioId = 2; // empty for do nothing
+}
+
+/*! Evaluation information:
+	- The pack id containing all the simulations
+	- Ids and associated response plan for each simulation.
+*/
+message StartEvaluationReply
+{
+	string						packId = 1;
+	repeated EvaluationSim		simulations = 2;
+}
+/*! log for the pattern matcher:
+	- Nb detectors used
+	- distance value of each pattern
+*/
+message PatternLog
+{
+	int64					detectors = 1;
+	string					distancePatterns = 2;
+}

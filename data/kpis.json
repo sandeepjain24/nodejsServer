@@ -1,0 +1,23 @@
+[
+	{
+		"name": "kpi1",
+		"indicator": [
+			1, 2, 3
+		]
+	}, {
+		"name": "kpi2",
+		"indicator": [
+			1, 2, 3
+		]
+	}, {
+		"name": "kpi3",
+		"indicator": [
+			1, 2, 3
+		]
+	}, {
+		"name": "kpi4",
+		"indicator": [
+			1, 2, 3
+		]
+	}
+]
